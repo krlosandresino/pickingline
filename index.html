@@ -125,7 +125,6 @@
 
         #msg { position: fixed; top: 20px; right: 20px; padding: 20px; border-radius: 10px; display: none; z-index: 2000; font-weight: bold; }
         
-        /* Nuevos Estilos para el Menú de Inicio */
         .menu-container {
             display: flex;
             flex-direction: column;
@@ -199,7 +198,6 @@
 </div>
 
 <script>
-    // Configuración de Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyClp2tVcoeIE_ZOedIzP6zyEXEoP9Em0tM",
         authDomain: "chatpareja-3fbce.firebaseapp.com",
@@ -228,7 +226,7 @@
         osc.stop(audioCtx.currentTime + duration);
     }
 
-    // Escuchar cambios pero NO cambiar de vista automáticamente
+    // Listener principal de Firebase
     db.ref('picking_live').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -236,7 +234,6 @@
             stationsList = data.stationsList || [];
             codeMap = new Map(Object.entries(data.codeMap || {}));
             
-            // Si el usuario ya está en la vista principal, actualizamos los datos
             if (document.getElementById('mainView').style.display === 'flex') {
                 initSelect();
                 updateView();
@@ -244,12 +241,17 @@
         }
     });
 
-    // Función para entrar sin cargar nuevo archivo
-    function enterLiveSession() {
-        if (stationsList.length === 0) {
+    async function enterLiveSession() {
+        // Consultar directamente a Firebase antes de entrar por si los datos locales no han sincronizado
+        const snapshot = await db.ref('picking_live/stationsList').once('value');
+        const list = snapshot.val();
+
+        if (!list || list.length === 0) {
             showNotify("No hay estaciones cargadas. Por favor carga un Excel.", "var(--danger)");
             return;
         }
+        
+        stationsList = list;
         document.getElementById('welcomeView').style.display = 'none';
         document.getElementById('mainView').style.display = 'flex';
         initSelect();
@@ -282,12 +284,8 @@
                     stationsList: tempStationsList,
                     codeMap: {}
                 }).then(() => {
-                    document.getElementById('welcomeView').style.display = 'none';
-                    document.getElementById('mainView').style.display = 'flex';
                     showNotify("NUEVA LÍNEA CARGADA", "var(--success)");
-                    initSelect();
-                    updateView();
-                    setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+                    enterLiveSession();
                 });
             }
         };
@@ -317,6 +315,8 @@
     function updateView() {
         const container = document.getElementById('tableBody');
         const active = document.getElementById('activeStation').value;
+        if (!container || !active) return;
+        
         container.innerHTML = '';
 
         stationsList.forEach(name => {
@@ -345,7 +345,7 @@
         });
 
         const activeRow = document.getElementById('activeRow');
-        if(activeRow && document.activeElement.id === 'barcodeInput') {
+        if(activeRow) {
             activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }
@@ -358,6 +358,18 @@
 
         if(!code) return;
 
+        const currentStationData = stationsData[station] || [];
+        if (currentStationData.length >= 1) {
+            playTone(150, 'sawtooth', 0.5);
+            showNotify(`ERROR: Estación ${station} ya tiene un código`, 'var(--danger)');
+            input.value = '';
+            // Salto automático incluso si está ocupada para no trabar el flujo
+            const nextIdx = (stationsList.indexOf(station) + 1) % stationsList.length;
+            select.value = stationsList[nextIdx];
+            updateView();
+            return;
+        }
+
         if(codeMap.has(code)) {
             playTone(150, 'sawtooth', 0.5);
             showNotify(`DUPLICADO: Ubicación ${codeMap.get(code)}`, 'var(--danger)');
@@ -367,14 +379,13 @@
         playTone(880, 'sine', 0.1);
         
         const newEntry = { code: code, time: new Date().toLocaleTimeString() };
-        const updatedStationData = [newEntry, ...(stationsData[station] || [])];
-        
-        db.ref(`picking_live/stationsData/${station}`).set(updatedStationData);
+        db.ref(`picking_live/stationsData/${station}`).set([newEntry]);
         db.ref(`picking_live/codeMap/${code}`).set(station);
 
         const nextIdx = (stationsList.indexOf(station) + 1) % stationsList.length;
         select.value = stationsList[nextIdx];
-        input.value = ''; input.focus();
+        input.value = ''; 
+        input.focus();
     }
 
     function clearStationData() {
