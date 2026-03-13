@@ -124,7 +124,7 @@
             <div class="scan-container">
                 <select id="activeStation" onchange="updateView()"></select>
                 <button onclick="exportToExcel()" style="background:transparent; border:1px solid var(--accent); color:var(--accent); border-radius:8px; cursor:pointer;">Exportar Excel</button>
-                <input type="text" id="barcodeInput" placeholder="Escanea código aquí..." autofocus>
+                <input type="text" id="barcodeInput" placeholder="Escanea código aquí..." autofocus autocomplete="off">
                 <button onclick="processScan()" style="background:var(--success); border:none; color:white; border-radius:8px; cursor:pointer; font-weight:bold;">REGISTRAR</button>
                 <button onclick="clearStationData()" style="background:var(--danger); border:none; color:white; border-radius:8px; cursor:pointer; font-weight:bold;">LIMPIAR TODO</button>
             </div>
@@ -155,6 +155,7 @@
     let stationsData = {};
     let stationsList = [];
     let codeMap = new Map();
+    let scanTimeout;
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function playTone(freq, type, duration) {
@@ -215,7 +216,7 @@
         if(codeMap.has(code)) {
             playTone(150, 'sawtooth', 0.5); 
             showNotify(`DUPLICADO: Ubicación ${codeMap.get(code)}`, "var(--danger)");
-            jumpToNext(); // Cambio aplicado: Ahora salta a la siguiente ubicación en caso de duplicado
+            jumpToNext(); 
             return;
         }
 
@@ -276,7 +277,20 @@
         m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 3500);
     }
 
-    document.getElementById('barcodeInput').addEventListener('keypress', e => { if(e.key === 'Enter') processScan(); });
+    // LISTENER MEJORADO: Detecta Enter o espera 300ms después del pitido para procesar
+    document.getElementById('barcodeInput').addEventListener('input', e => {
+        clearTimeout(scanTimeout);
+        scanTimeout = setTimeout(() => {
+            if(e.target.value.trim().length > 0) processScan();
+        }, 300); 
+    });
+
+    document.getElementById('barcodeInput').addEventListener('keypress', e => { 
+        if(e.key === 'Enter') {
+            clearTimeout(scanTimeout);
+            processScan(); 
+        }
+    });
 
     document.getElementById('excelInput').addEventListener('change', function(e) {
         const reader = new FileReader();
