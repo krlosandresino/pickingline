@@ -197,7 +197,6 @@
 
         if(!code) return;
 
-        // Función interna para saltar a la siguiente ubicación
         const jumpToNext = () => {
             const nextIdx = (stationsList.indexOf(station) + 1) % stationsList.length;
             select.value = stationsList[nextIdx];
@@ -206,33 +205,29 @@
             updateView();
         };
 
-        // VALIDACIÓN: Ubicación Ocupada
         if (stationsData[station] && stationsData[station].length >= 1) {
-            playTone(150, 'sawtooth', 0.5); // Sonido Error
+            playTone(150, 'sawtooth', 0.5); 
             showNotify(`UBICACIÓN ${station} OCUPADA`, "var(--danger)");
-            jumpToNext(); // SALTA A PESAR DEL ERROR
+            jumpToNext(); 
             return;
         }
 
-        // VALIDACIÓN: Código Duplicado
         if(codeMap.has(code)) {
-            playTone(150, 'sawtooth', 0.5); // Sonido Error
+            playTone(150, 'sawtooth', 0.5); 
             showNotify(`DUPLICADO: Ubicación ${codeMap.get(code)}`, "var(--danger)");
-            input.value = ''; return; // Aquí no salta de ubicación porque el operario debe corregir el código
+            jumpToNext(); // Cambio aplicado: Ahora salta a la siguiente ubicación en caso de duplicado
+            return;
         }
 
-        // ÉXITO: Registro normal
         playTone(880, 'sine', 0.1); 
         const newEntry = { code: code, time: new Date().toLocaleTimeString() };
         
-        // Actualización instantánea
         if(!stationsData[station]) stationsData[station] = [];
         stationsData[station] = [newEntry];
         codeMap.set(code, station);
 
-        jumpToNext(); // SALTA A LA SIGUIENTE
+        jumpToNext(); 
 
-        // Sincronización fondo
         db.ref(`picking_live/stationsData/${station}`).set([newEntry]);
         db.ref(`picking_live/codeMap/${code}`).set(station);
     }
