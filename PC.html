@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Picking Oriflame</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --panel: #1e293b;
+            --accent: #38bdf8;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --border: #334155;
+            --text: #f1f5f9;
+        }
+
+        body, html { 
+            height: 100%; 
+            margin: 0; 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+        
+        .layout { display: flex; flex-direction: column; height: 100vh; }
+
+        .top-container {
+            flex-shrink: 0;
+            z-index: 1000;
+            background: var(--bg);
+        }
+
+        .header-fixed { 
+            background: var(--panel); 
+            padding: 15px 25px; 
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        
+        .scan-container { 
+            display: grid; 
+            grid-template-columns: 220px 1fr auto auto; 
+            gap: 15px; 
+            background: rgba(56, 189, 248, 0.07); 
+            padding: 10px; 
+            border-radius: 8px; 
+            border: 1px solid var(--accent); 
+        }
+
+        input, select { 
+            padding: 10px; 
+            background: #0b0f19; 
+            border: 1px solid var(--border); 
+            color: white; 
+            border-radius: 6px; 
+            outline: none; 
+        }
+
+        .table-header-fixed {
+            background: #1a2233;
+            padding: 0 25px;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .header-row {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 2fr 1fr 0.5fr;
+            max-width: 1300px;
+            margin: 0 auto;
+            padding: 15px 20px;
+        }
+
+        .header-row span {
+            font-size: 0.8rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .scroll-area { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 0 25px 40px 25px; 
+        }
+
+        .table-body-container { 
+            background: var(--panel); 
+            border-radius: 0 0 12px 12px; 
+            border: 1px solid var(--border); 
+            width: 100%; 
+            max-width: 1300px; 
+            margin: 0 auto;
+        }
+
+        .data-row {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 2fr 1fr 0.5fr;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+            font-size: 0.95rem;
+        }
+
+        .active-row { 
+            background: rgba(56, 189, 248, 0.2) !important; 
+            border-left: 5px solid var(--accent);
+            scroll-margin-top: 10px;
+        }
+        
+        .status-completed { color: var(--success); font-weight: bold; }
+        .status-scanning { color: var(--accent); font-weight: bold; animation: blink 1.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.6; } }
+
+        .count-badge { background: var(--accent); color: #000; padding: 2px 12px; border-radius: 15px; font-weight: bold; display: inline-block; }
+        .btn-del { background: var(--danger); border: none; color: white; cursor: pointer; border-radius: 4px; padding: 4px 8px; font-weight: bold; }
+
+        #msg { position: fixed; top: 20px; right: 20px; padding: 20px; border-radius: 10px; display: none; z-index: 2000; font-weight: bold; }
+        
+        .menu-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            text-align: center;
+        }
+        .btn-menu {
+            padding: 20px 40px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: 2px solid var(--accent);
+            transition: 0.3s;
+        }
+        .btn-load { background: var(--accent); color: #000; }
+        .btn-enter { background: transparent; color: var(--accent); }
+        .btn-menu:hover { transform: scale(1.05); filter: brightness(1.2); }
+    </style>
+</head>
+<body>
+
+<div id="msg"></div>
+
+<div id="welcomeView" style="height:100vh; display:flex; justify-content:center; align-items:center;">
+    <div class="menu-container">
+        <h2 style="color:var(--accent); margin-bottom: 30px;">SISTEMA DE PICKING ORIFLAME</h2>
+        <label class="btn-menu btn-load">
+            CARGAR LINEA DE PICKING
+            <input type="file" id="excelInput" hidden accept=".xlsx, .xls">
+        </label>
+        <button class="btn-menu btn-enter" onclick="enterLiveSession()">
+            PANEL DE PITADO
+        </button>
+    </div>
+</div>
+
+<div id="mainView" class="layout" style="display: none;">
+    <div class="top-container">
+        <div class="header-fixed">
+            <div class="header-top">
+                <h3 style="margin:0;">LINEA DE PICKING <small style="color:var(--accent)">| Oriflame</small></h3>
+                <div>
+                    <button onclick="location.reload()" style="background:transparent; border:1px solid #94a3b8; color:#94a3b8; padding:5px 15px; border-radius:5px; cursor:pointer; margin-right: 10px;">Volver al Menú</button>
+                    <button onclick="exportToExcel()" style="background:transparent; border:1px solid var(--accent); color:var(--accent); padding:5px 15px; border-radius:5px; cursor:pointer;">Exportar Reporte</button>
+                </div>
+            </div>
+            <div class="scan-container">
+                <select id="activeStation" onchange="updateView()"></select>
+                <input type="text" id="barcodeInput" placeholder="Escanea código aquí..." autofocus>
+                <button onclick="processScan()" style="background:var(--success); border:none; color:white; border-radius:6px; cursor:pointer; font-weight:bold; padding: 10px 20px;">REGISTRAR</button>
+                <button onclick="clearStationData()" style="background:var(--danger); border:none; color:white; border-radius:6px; cursor:pointer; font-weight:bold; padding: 10px 20px;">LIMPIAR TODO</button>
+            </div>
+        </div>
+        
+        <div class="table-header-fixed">
+            <div class="header-row">
+                <span>Ubicación</span>
+                <span>Pitado</span>
+                <span>Código</span>
+                <span>Estado</span>
+                <span>Acción</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="scroll-area">
+        <div class="table-body-container" id="tableBody">
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyClp2tVcoeIE_ZOedIzP6zyEXEoP9Em0tM",
+        authDomain: "chatpareja-3fbce.firebaseapp.com",
+        databaseURL: "https://chatpareja-3fbce-default-rtdb.firebaseio.com",
+        projectId: "chatpareja-3fbce",
+        storageBucket: "chatpareja-3fbce.firebasestorage.app",
+        messagingSenderId: "954583350974",
+        appId: "1:954583350974:web:206cdca70f941872d728ef"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let stationsData = {};
+    let stationsList = [];
+    let codeMap = new Map();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playTone(freq, type, duration) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.value = freq;
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // Listener principal de Firebase
+    db.ref('picking_live').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            stationsData = data.stationsData || {};
+            stationsList = data.stationsList || [];
+            codeMap = new Map(Object.entries(data.codeMap || {}));
+            
+            if (document.getElementById('mainView').style.display === 'flex') {
+                initSelect();
+                updateView();
+            }
+        }
+    });
+
+    async function enterLiveSession() {
+        // Consultar directamente a Firebase antes de entrar por si los datos locales no han sincronizado
+        const snapshot = await db.ref('picking_live/stationsList').once('value');
+        const list = snapshot.val();
+
+        if (!list || list.length === 0) {
+            showNotify("No hay estaciones cargadas. Por favor carga un Excel.", "var(--danger)");
+            return;
+        }
+        
+        stationsList = list;
+        document.getElementById('welcomeView').style.display = 'none';
+        document.getElementById('mainView').style.display = 'flex';
+        initSelect();
+        updateView();
+        setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+    }
+
+    document.getElementById('excelInput').addEventListener('change', function(e) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const data = new Uint8Array(event.target.result);
+            const wb = XLSX.read(data, {type: 'array'});
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet);
+            
+            if(json.length > 0) {
+                let tempStationsData = {}; 
+                let tempStationsList = [];
+                
+                json.forEach(row => {
+                    const name = row.Estacion || row.Nombre || row.UBICACION || Object.values(row)[0];
+                    if(name && !tempStationsData[name]) { 
+                        tempStationsData[name] = []; 
+                        tempStationsList.push(name); 
+                    }
+                });
+                
+                db.ref('picking_live').set({
+                    stationsData: tempStationsData,
+                    stationsList: tempStationsList,
+                    codeMap: {}
+                }).then(() => {
+                    showNotify("NUEVA LÍNEA CARGADA", "var(--success)");
+                    enterLiveSession();
+                });
+            }
+        };
+        reader.readAsArrayBuffer(e.target.files[0]);
+    });
+
+    function initSelect() {
+        const select = document.getElementById('activeStation');
+        const prevValue = select.value;
+        select.innerHTML = '';
+        stationsList.forEach(name => {
+            let opt = document.createElement('option');
+            opt.value = name; opt.textContent = name;
+            select.appendChild(opt);
+        });
+        if(prevValue && stationsList.includes(prevValue)) select.value = prevValue;
+    }
+
+    function deleteItem(station, code) {
+        if(confirm(`¿Eliminar el código ${code}?`)) {
+            const updatedList = (stationsData[station] || []).filter(item => item.code !== code);
+            db.ref(`picking_live/stationsData/${station}`).set(updatedList);
+            db.ref(`picking_live/codeMap/${code}`).remove();
+        }
+    }
+
+    function updateView() {
+        const container = document.getElementById('tableBody');
+        const active = document.getElementById('activeStation').value;
+        if (!container || !active) return;
+        
+        container.innerHTML = '';
+
+        stationsList.forEach(name => {
+            const isActive = (name === active);
+            const currentData = stationsData[name] || [];
+            const hasData = currentData.length > 0;
+            const lastEntry = currentData[0] || { code: '-', time: '' };
+            
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'data-row' + (isActive ? ' active-row' : '');
+            if(isActive) rowDiv.id = 'activeRow';
+            
+            let statusHtml = isActive ? '<span class="status-scanning">● ESCANEANDO</span>' : 
+                             (hasData ? '<span class="status-completed">✓ COMPLETADO</span>' : '<span style="color:#475569">Esperando</span>');
+
+            let actionHtml = hasData ? `<button class="btn-del" onclick="deleteItem('${name}', '${lastEntry.code}')">X</button>` : '';
+
+            rowDiv.innerHTML = `
+                <div style="font-weight:bold">${name}</div>
+                <div><span class="count-badge">${currentData.length}</span></div>
+                <div style="font-family:monospace; color:#94a3b8">${lastEntry.code}</div>
+                <div>${statusHtml}</div>
+                <div>${actionHtml}</div>
+            `;
+            container.appendChild(rowDiv);
+        });
+
+        const activeRow = document.getElementById('activeRow');
+        if(activeRow) {
+            activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    function processScan() {
+        const input = document.getElementById('barcodeInput');
+        const select = document.getElementById('activeStation');
+        const code = input.value.trim();
+        const station = select.value;
+
+        if(!code) return;
+
+        const currentStationData = stationsData[station] || [];
+        if (currentStationData.length >= 1) {
+            playTone(150, 'sawtooth', 0.5);
+            showNotify(`ERROR: Estación ${station} ya tiene un código`, 'var(--danger)');
+            input.value = '';
+            // Salto automático incluso si está ocupada para no trabar el flujo
+            const nextIdx = (stationsList.indexOf(station) + 1) % stationsList.length;
+            select.value = stationsList[nextIdx];
+            updateView();
+            return;
+        }
+
+        if(codeMap.has(code)) {
+            playTone(150, 'sawtooth', 0.5);
+            showNotify(`DUPLICADO: Ubicación ${codeMap.get(code)}`, 'var(--danger)');
+            input.value = ''; return;
+        }
+
+        playTone(880, 'sine', 0.1);
+        
+        const newEntry = { code: code, time: new Date().toLocaleTimeString() };
+        db.ref(`picking_live/stationsData/${station}`).set([newEntry]);
+        db.ref(`picking_live/codeMap/${code}`).set(station);
+
+        const nextIdx = (stationsList.indexOf(station) + 1) % stationsList.length;
+        select.value = stationsList[nextIdx];
+        input.value = ''; 
+        input.focus();
+    }
+
+    function clearStationData() {
+        if(confirm(`¿BORRAR TODOS los códigos de TODAS las estaciones?`)) {
+            db.ref('picking_live/codeMap').set({});
+            stationsList.forEach(st => {
+                db.ref(`picking_live/stationsData/${st}`).set([]);
+            });
+            document.getElementById('barcodeInput').focus();
+        }
+    }
+
+    document.getElementById('barcodeInput').addEventListener('keypress', e => { if(e.key === 'Enter') processScan(); });
+
+    function showNotify(text, color) {
+        const m = document.getElementById('msg');
+        m.innerHTML = text; m.style.backgroundColor = color;
+        m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 4000);
+    }
+
+    function exportToExcel() {
+        let exportData = [];
+        stationsList.forEach(st => {
+            (stationsData[st] || []).forEach(item => {
+                exportData.push({ Ubicacion: st, Codigo: item.code });
+            });
+        });
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Picking");
+        XLSX.writeFile(wb, "Reporte_Picking_Line.xlsx");
+    }
+</script>
+</body>
+</html>
