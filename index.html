@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Picking Oriflame - Ultra Fast</title>
+    <title>Picking Oriflame</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
 
@@ -19,37 +20,111 @@
             --text: #f1f5f9;
         }
 
-        body, html { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; }
+        body, html { 
+            height: 100%; 
+            margin: 0; 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+        }
+        
         .layout { display: flex; flex-direction: column; height: 100vh; }
-        .top-container { flex-shrink: 0; z-index: 1000; background: var(--bg); }
-        .header-fixed { background: var(--panel); padding: 15px; border-bottom: 1px solid var(--border); }
-        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+
+        .top-container {
+            flex-shrink: 0;
+            z-index: 1000;
+            background: var(--bg);
+        }
+
+        .header-fixed { 
+            background: var(--panel); 
+            padding: 15px 20px; 
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         
         .scan-container { 
-            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; 
-            background: rgba(56, 189, 248, 0.07); padding: 10px; border-radius: 8px; border: 1px solid var(--accent); 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+            gap: 15px; 
+            background: rgba(56, 189, 248, 0.07); 
+            padding: 15px; 
+            border-radius: 12px; 
+            border: 1px solid var(--accent); 
         }
-        #barcodeInput { grid-column: span 2; }
 
-        input, select { padding: 10px; background: #0b0f19; border: 1px solid var(--border); color: white; border-radius: 6px; outline: none; width: 100%; box-sizing: border-box; }
+        input, select { 
+            padding: 12px; 
+            background: #0b0f19; 
+            border: 1px solid var(--border); 
+            color: white; 
+            border-radius: 8px; 
+            outline: none; 
+            width: 100%;
+            box-sizing: border-box;
+        }
 
-        .table-header-fixed { background: #1a2233; padding: 0 15px; border-bottom: 2px solid var(--accent); }
-        .header-row { display: grid; grid-template-columns: 1.2fr 0.8fr 1.5fr 1fr 0.5fr; padding: 15px 10px; }
-        .header-row span { font-size: 0.7rem; color: var(--accent); text-transform: uppercase; font-weight: bold; }
+        .table-header-fixed {
+            background: #1a2233;
+            padding: 0 20px;
+            border-bottom: 2px solid var(--accent);
+        }
 
-        .scroll-area { flex: 1; overflow-y: auto; padding: 0 15px 40px 15px; }
-        .table-body-container { background: var(--panel); border-radius: 0 0 12px 12px; border: 1px solid var(--border); width: 100%; }
+        .header-row {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr 1.5fr 1fr 0.5fr;
+            max-width: 1300px;
+            margin: 0 auto;
+            padding: 15px 10px;
+        }
 
-        .data-row { display: grid; grid-template-columns: 1.2fr 0.8fr 1.5fr 1fr 0.5fr; padding: 12px 10px; border-bottom: 1px solid var(--border); align-items: center; font-size: 0.85rem; }
-        .active-row { background: rgba(56, 189, 248, 0.2) !important; border-left: 5px solid var(--accent); }
+        .header-row span {
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .scroll-area { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 0 20px 40px 20px; 
+        }
+
+        .table-body-container { 
+            background: var(--panel); 
+            border-radius: 0 0 12px 12px; 
+            border: 1px solid var(--border); 
+            width: 100%; 
+            max-width: 1300px; 
+            margin: 0 auto;
+        }
+
+        .data-row {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr 1.5fr 1fr 0.5fr;
+            padding: 15px 10px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+        }
+
+        .active-row { 
+            background: rgba(56, 189, 248, 0.2) !important; 
+            border-left: 5px solid var(--accent);
+            scroll-margin-top: 10px;
+        }
         
-        .status-completed { color: var(--success); font-weight: bold; font-size: 0.75rem; }
-        .status-scanning { color: var(--accent); font-weight: bold; animation: blink 1.5s infinite; font-size: 0.75rem; }
+        .status-completed { color: var(--success); font-weight: bold; font-size: 0.85rem; }
+        .status-scanning { color: var(--accent); font-weight: bold; animation: blink 1.5s infinite; font-size: 0.85rem; }
         @keyframes blink { 50% { opacity: 0.6; } }
 
-        .count-badge { background: var(--accent); color: #000; padding: 2px 10px; border-radius: 15px; font-weight: bold; }
-        .btn-del { background: var(--danger); border: none; color: white; border-radius: 4px; padding: 6px 10px; font-weight: bold; }
-        #msg { position: fixed; top: 20px; left: 20px; right: 20px; padding: 20px; border-radius: 10px; display: none; z-index: 2000; font-weight: bold; text-align: center; }
+        .count-badge { background: var(--accent); color: #000; padding: 2px 12px; border-radius: 20px; font-weight: bold; }
+        .btn-del { background: var(--danger); border: none; color: white; cursor: pointer; border-radius: 6px; padding: 8px 12px; font-weight: bold; }
+
+        #msg { position: fixed; top: 20px; left: 20px; right: 20px; padding: 20px; border-radius: 12px; display: none; z-index: 2000; font-weight: bold; text-align: center; }
     </style>
 </head>
 <body>
@@ -57,12 +132,15 @@
 <div id="msg"></div>
 
 <div id="welcomeView" style="height:100vh; display:flex; justify-content:center; align-items:center;">
-    <div style="text-align:center; width:90%;">
-        <h2 style="color:var(--accent);">PICKING ORIFLAME</h2>
-        <label style="display:block; padding:20px; background:var(--accent); color:#000; border-radius:12px; font-weight:bold; margin-bottom:20px; cursor:pointer;">
-            CARGAR EXCEL <input type="file" id="excelInput" hidden accept=".xlsx, .xls">
+    <div style="text-align:center; width: 90%; max-width: 400px;">
+        <h2 style="color:var(--accent); margin-bottom: 30px;">SISTEMA DE PICKING ORIFLAME</h2>
+        <label style="display:block; padding:20px; background:var(--accent); color:#000; border-radius:12px; font-weight:bold; cursor:pointer; margin-bottom:20px;">
+            CARGAR LINEA DE PICKING
+            <input type="file" id="excelInput" hidden accept=".xlsx, .xls">
         </label>
-        <button onclick="enterLiveSession()" style="width:100%; padding:20px; background:transparent; border:2px solid var(--accent); color:var(--accent); border-radius:12px; font-weight:bold;">ENTRAR AL PANEL</button>
+        <button onclick="enterLiveSession()" style="width:100%; padding:20px; background:transparent; border:2px solid var(--accent); color:var(--accent); border-radius:12px; font-weight:bold; cursor:pointer;">
+            PANEL DE PITADO
+        </button>
     </div>
 </div>
 
@@ -70,24 +148,32 @@
     <div class="top-container">
         <div class="header-fixed">
             <div class="header-top">
-                <h3 style="margin:0;">LINEA <small style="color:var(--accent)">| Oriflame</small></h3>
-                <button onclick="location.reload()" style="background:transparent; border:1px solid #94a3b8; color:#94a3b8; padding:5px; border-radius:5px;">Salir</button>
+                <h3 style="margin:0;">LINEA DE PICKING <small style="color:var(--accent)">| Oriflame</small></h3>
+                <button onclick="location.reload()" style="background:transparent; border:1px solid #94a3b8; color:#94a3b8; padding:5px 12px; border-radius:6px; cursor:pointer;">Menú Principal</button>
             </div>
             <div class="scan-container">
                 <select id="activeStation" onchange="updateView()"></select>
-                <button onclick="exportToExcel()" style="color:var(--accent); border:1px solid var(--accent); background:none; border-radius:5px;">Reporte</button>
-                <input type="text" id="barcodeInput" placeholder="Escanea..." autofocus>
-                <button onclick="processScan()" style="background:var(--success); color:white; border:none; padding:10px; border-radius:6px; font-weight:bold;">REGISTRAR</button>
-                <button onclick="clearStationData()" style="background:var(--danger); color:white; border:none; padding:10px; border-radius:6px; font-weight:bold;">LIMPIAR</button>
+                <button onclick="exportToExcel()" style="background:transparent; border:1px solid var(--accent); color:var(--accent); border-radius:8px; cursor:pointer;">Exportar Excel</button>
+                <input type="text" id="barcodeInput" placeholder="Escanea código aquí..." autofocus>
+                <button onclick="processScan()" style="background:var(--success); border:none; color:white; border-radius:8px; cursor:pointer; font-weight:bold;">REGISTRAR</button>
+                <button onclick="clearStationData()" style="background:var(--danger); border:none; color:white; border-radius:8px; cursor:pointer; font-weight:bold;">LIMPIAR TODO</button>
             </div>
         </div>
+        
         <div class="table-header-fixed">
             <div class="header-row">
-                <span>UBIC</span><span>PITS</span><span>CÓDIGO</span><span>ESTADO</span><span>ACC</span>
+                <span>Ubicación</span>
+                <span>Pits</span>
+                <span>Código</span>
+                <span>Estado</span>
+                <span>Acción</span>
             </div>
         </div>
     </div>
-    <div class="scroll-area"><div class="table-body-container" id="tableBody"></div></div>
+
+    <div class="scroll-area">
+        <div class="table-body-container" id="tableBody"></div>
+    </div>
 </div>
 
 <script>
@@ -108,7 +194,7 @@
     let stationsList = [];
     let codeMap = new Map();
 
-    // Sincronización inicial
+    // ESCUCHA DE FIREBASE: Se mantiene para sincronizar varios dispositivos
     db.ref('picking_live').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -124,14 +210,16 @@
 
     async function enterLiveSession() {
         const snapshot = await db.ref('picking_live/stationsList').once('value');
-        if (!snapshot.exists()) return alert("Carga un Excel");
+        if (!snapshot.exists()) return showNotify("No hay estaciones cargadas.", "var(--danger)");
         stationsList = snapshot.val();
         document.getElementById('welcomeView').style.display = 'none';
         document.getElementById('mainView').style.display = 'flex';
-        initSelect(); updateView();
+        initSelect();
+        updateView();
         setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
     }
 
+    // PROCESO DE PITADO OPTIMIZADO: Diseño original + Lógica instantánea
     function processScan() {
         const input = document.getElementById('barcodeInput');
         const select = document.getElementById('activeStation');
@@ -140,34 +228,33 @@
 
         if(!code) return;
 
-        // 1. VALIDACIÓN LOCAL RÁPIDA
+        // Validación inmediata
         if (stationsData[station] && stationsData[station].length >= 1) {
-            showNotify("UBICACIÓN OCUPADA", "var(--danger)");
+            showNotify(`ERROR: Estación ${station} ya ocupada`, "var(--danger)");
             input.value = ''; return;
         }
         if(codeMap.has(code)) {
-            showNotify(`DUPLICADO: ${codeMap.get(code)}`, "var(--danger)");
+            showNotify(`DUPLICADO: En ubicación ${codeMap.get(code)}`, "var(--danger)");
             input.value = ''; return;
         }
 
-        // 2. ACTUALIZACIÓN LOCAL INSTANTÁNEA (Microsegundos)
+        // --- SALTO INSTANTÁNEO ---
         const newEntry = { code: code, time: new Date().toLocaleTimeString() };
         
-        // Actualizamos las variables locales antes que Firebase
+        // Actualizamos localmente para que el usuario no espere al internet
         if(!stationsData[station]) stationsData[station] = [];
         stationsData[station] = [newEntry];
         codeMap.set(code, station);
 
-        // Cambiamos de estación en la interfaz de inmediato
+        // Cambiar estación y limpiar ANTES de ir a Firebase
         const nextIdx = (stationsList.indexOf(station) + 1) % stationsList.length;
         select.value = stationsList[nextIdx];
         input.value = '';
         input.focus();
         
-        // Refrescamos la tabla localmente sin esperar al servidor
-        updateView(); 
+        updateView(); // Refresco visual local inmediato
 
-        // 3. SINCRONIZACIÓN ASÍNCRONA CON FIREBASE (En segundo plano)
+        // --- SINCRONIZACIÓN EN SEGUNDO PLANO ---
         db.ref(`picking_live/stationsData/${station}`).set([newEntry]);
         db.ref(`picking_live/codeMap/${code}`).set(station);
     }
@@ -177,38 +264,37 @@
         const active = document.getElementById('activeStation').value;
         if (!container || !active) return;
 
-        let html = '';
+        let content = '';
         stationsList.forEach(name => {
             const isActive = (name === active);
             const currentData = stationsData[name] || [];
             const hasData = currentData.length > 0;
-            const lastCode = hasData ? currentData[0].code : '-';
-            
-            html += `
+            const lastEntry = hasData ? currentData[0] : { code: '-', time: '' };
+
+            content += `
                 <div class="data-row ${isActive ? 'active-row' : ''}" id="${isActive ? 'activeRow' : ''}">
                     <div style="font-weight:bold">${name}</div>
                     <div><span class="count-badge">${currentData.length}</span></div>
-                    <div style="font-family:monospace; color:#94a3b8">${lastCode}</div>
-                    <div>${isActive ? '<span class="status-scanning">LISTO</span>' : (hasData ? '<span class="status-completed">OK</span>' : '-')}</div>
-                    <div>${hasData ? `<button class="btn-del" onclick="deleteItem('${name}', '${lastCode}')">X</button>` : ''}</div>
+                    <div style="font-family:monospace; color:#94a3b8">${lastEntry.code}</div>
+                    <div>${isActive ? '<span class="status-scanning">ESCANEANDO</span>' : (hasData ? '<span class="status-completed">COMPLETADO</span>' : '<span style="color:#475569">Esperando</span>')}</div>
+                    <div>${hasData ? `<button class="btn-del" onclick="deleteItem('${name}', '${lastEntry.code}')">X</button>` : ''}</div>
                 </div>`;
         });
-        container.innerHTML = html;
+        container.innerHTML = content;
 
         const activeRow = document.getElementById('activeRow');
         if(activeRow) activeRow.scrollIntoView({ behavior: 'auto', block: 'nearest' });
     }
 
-    // Funciones de soporte (iguales a las originales)
     function initSelect() {
         const select = document.getElementById('activeStation');
-        const current = select.value;
-        select.innerHTML = stationsList.map(n => `<option value="${n}">${n}</option>`).join('');
-        if(current && stationsList.includes(current)) select.value = current;
+        const prev = select.value;
+        select.innerHTML = stationsList.map(name => `<option value="${name}">${name}</option>`).join('');
+        if(prev && stationsList.includes(prev)) select.value = prev;
     }
 
     function deleteItem(station, code) {
-        if(!confirm(`¿Eliminar ${code}?`)) return;
+        if(!confirm(`¿Eliminar el código ${code}?`)) return;
         stationsData[station] = [];
         codeMap.delete(code);
         updateView();
@@ -216,10 +302,10 @@
         db.ref(`picking_live/codeMap/${code}`).remove();
     }
 
-    function showNotify(t, c) {
+    function showNotify(text, color) {
         const m = document.getElementById('msg');
-        m.innerHTML = t; m.style.backgroundColor = c;
-        m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 2000);
+        m.innerHTML = text; m.style.backgroundColor = color;
+        m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 3000);
     }
 
     document.getElementById('barcodeInput').addEventListener('keypress', e => { if(e.key === 'Enter') processScan(); });
@@ -228,30 +314,41 @@
         const reader = new FileReader();
         reader.onload = (event) => {
             const data = new Uint8Array(event.target.result);
-            const json = XLSX.utils.sheet_to_json(XLSX.read(data, {type: 'array'}).Sheets[XLSX.read(data, {type: 'array'}).SheetNames[0]]);
-            let tempStationsData = {}; let tempStationsList = [];
+            const workbook = XLSX.read(data, {type: 'array'});
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            let tData = {}; let tList = [];
             json.forEach(row => {
                 const name = row.Estacion || row.Nombre || row.UBICACION || Object.values(row)[0];
-                if(name && !tempStationsData[name]) { tempStationsData[name] = []; tempStationsList.push(name); }
+                if(name && !tData[name]) { tData[name] = []; tList.push(name); }
             });
-            db.ref('picking_live').set({ stationsData: tempStationsData, stationsList: tempStationsList, codeMap: {} }).then(() => enterLiveSession());
+            db.ref('picking_live').set({ stationsData: tData, stationsList: tList, codeMap: {} }).then(() => enterLiveSession());
         };
         reader.readAsArrayBuffer(e.target.files[0]);
     });
 
     function clearStationData() {
-        if(!confirm("¿BORRAR TODO?")) return;
-        stationsList.forEach(st => { stationsData[st] = []; });
+        if(!confirm("¿BORRAR TODOS LOS REGISTROS?")) return;
+        stationsList.forEach(st => stationsData[st] = []);
         codeMap.clear();
         updateView();
         db.ref('picking_live/codeMap').set({});
         stationsList.forEach(st => db.ref(`picking_live/stationsData/${st}`).set([]));
     }
 
+    // CORRECCIÓN DE REPORTE: Genera el Excel correctamente
     function exportToExcel() {
         let exportData = [];
-        stationsList.forEach(st => (stationsData[st] || []).forEach(item => exportData.push({ Ubicacion: st, Codigo: item.code })));
-        XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.json_to_sheet(exportData), "Picking"), "Reporte.xlsx");
+        stationsList.forEach(st => {
+            const data = stationsData[st] || [];
+            data.forEach(item => {
+                exportData.push({ "Ubicación": st, "Código": item.code, "Hora": item.time });
+            });
+        });
+        if(exportData.length === 0) return showNotify("No hay datos para exportar", "var(--danger)");
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Picking");
+        XLSX.writeFile(wb, "Reporte_Picking_Oriflame.xlsx");
     }
 </script>
 </body>
