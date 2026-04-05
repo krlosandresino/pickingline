@@ -57,7 +57,7 @@
             </div>
             <div class="scan-container">
                 <select id="activeStation" onchange="updateView()"></select>
-                <input type="text" id="barcodeInput" placeholder="Escanea código aquí..." autofocus>
+                <input type="number" id="barcodeInput" placeholder="Escanea código aquí..." autofocus>
                 <button onclick="processScan()" style="background:var(--success); border:none; color:white; border-radius:6px; cursor:pointer; font-weight:bold; padding: 10px 20px;">REGISTRAR</button>
                 <button onclick="clearStationData()" style="background:var(--danger); border:none; color:white; border-radius:6px; cursor:pointer; font-weight:bold; padding: 10px 20px;">LIMPIAR TODO</button>
             </div>
@@ -118,7 +118,6 @@
         if(current && stationsList.includes(current)) select.value = current;
     }
 
-    // Función para seleccionar estación con el mouse
     function selectStation(name) {
         const select = document.getElementById('activeStation');
         select.value = name;
@@ -135,13 +134,9 @@
             const isActive = (name === active); const cur = stationsData[name] || []; const has = cur.length > 0;
             const row = document.createElement('div'); row.className = 'data-row' + (isActive ? ' active-row' : '');
             if(isActive) row.id = 'activeRow';
-            
-            // Evento Click para seleccionar con mouse
             row.onclick = () => selectStation(name);
-
             let statusHtml = isActive ? '<span class="status-scanning">● MI UBICACIÓN</span>' : 
                              (has ? '<span class="status-completed">✓ COMPLETADO</span>' : '<span style="color:#475569">Esperando</span>');
-
             row.innerHTML = `<div><b>${name}</b></div><div><span class="count-badge">${cur.length}</span></div>
                 <div style="font-family:monospace; color:#94a3b8">${cur[0]?.code || '-'}</div>
                 <div>${statusHtml}</div>
@@ -156,24 +151,19 @@
         const select = document.getElementById('activeStation');
         const code = input.value.trim();
         const station = select.value;
-
         if (!code) { irASiguienteEstacion(select); updateView(); input.focus(); return; }
-
         if ((stationsData[station] || []).length >= 1) {
             playTone(150, 'sawtooth', 0.5); showNotify(`ERROR: ${station} ocupada`, 'var(--danger)');
             input.value = ''; irASiguienteEstacion(select); updateView(); return;
         }
-
         if (codeMap.has(code)) {
             playTone(150, 'sawtooth', 0.5); showNotify(`DUPLICADO: Ubicación ${codeMap.get(code)}`, 'var(--danger)');
             input.value = ''; return;
         }
-
         playTone(880, 'sine', 0.1);
         const entry = { code: code, time: new Date().toLocaleTimeString() };
         stationsData[station] = [entry]; codeMap.set(code, station);
         irASiguienteEstacion(select); updateView(); input.value = ''; input.focus();
-        
         const up = {}; up[`picking_live/stationsData/${station}`] = [entry]; up[`picking_live/codeMap/${code}`] = station;
         db.ref().update(up);
     }
