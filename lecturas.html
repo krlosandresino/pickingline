@@ -47,7 +47,11 @@
         <div class="header-fixed">
             <div class="header-top">
                 <h3 style="margin:0;">CONSOLIDADOR DE PICKING <small style="color:var(--accent)">| Sesión 1 & 2</small></h3>
-                <div>
+                <div id="statsCounter" style="font-size: 0.95rem; font-weight: bold; background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 6px; border: 1px solid var(--border);">
+                    Registros: <span style="color: white;">0</span> &nbsp;|&nbsp; Duplicados: <span style="color: var(--danger);">0</span>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-custom btn-del" onclick="deleteAllRecords()" style="padding: 10px 15px;">🗑️ Eliminar Todo</button>
                     <button class="btn-custom btn-outline" onclick="exportToExcel()">📥 Exportar a Excel</button>
                 </div>
             </div>
@@ -167,6 +171,18 @@
         }
     }
 
+    function deleteAllRecords() {
+        if (confirm('⚠️ ¿Estás seguro de ELIMINAR TODOS los registros de AMBAS sesiones?')) {
+            // Eliminar todos los datos de la sesión 1
+            db1.ref('picking_live/stationsData').remove();
+            db1.ref('picking_live/codeMap').remove();
+            
+            // Eliminar todos los datos de la sesión 2
+            db2.ref('picking_live/stationsData').remove();
+            db2.ref('picking_live/codeMap').remove();
+        }
+    }
+
     function renderTable() {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
@@ -175,9 +191,24 @@
 
         // Contar ocurrencias para detectar duplicados
         const codeCounts = {};
+        let totalDuplicados = 0;
+        
         combinedData.forEach(item => {
             codeCounts[item.code] = (codeCounts[item.code] || 0) + 1;
         });
+
+        // Contabilizar el total real de códigos duplicados
+        combinedData.forEach(item => {
+            if(codeCounts[item.code] > 1) {
+                totalDuplicados++;
+            }
+        });
+
+        // Actualizar mini contador en la cabecera
+        const statsCounter = document.getElementById('statsCounter');
+        if(statsCounter) {
+            statsCounter.innerHTML = `Registros: <span style="color: white;">${combinedData.length}</span> &nbsp;|&nbsp; Duplicados: <span style="color: var(--danger);">${totalDuplicados}</span>`;
+        }
 
         // Filtrar por búsqueda
         if (searchTerm) {
