@@ -29,7 +29,7 @@
         @keyframes blink { 50% { opacity: 0.6; } }
         .count-badge { background: var(--accent); color: #000; padding: 2px 12px; border-radius: 15px; font-weight: bold; display: inline-block; }
         .btn-del { background: var(--danger); border: none; color: white; cursor: pointer; border-radius: 4px; padding: 4px 8px; font-weight: bold; }
-        #msg { position: fixed; top: 20px; right: 20px; padding: 20px; border-radius: 10px; display: none; z-index: 2000; font-weight: bold; }
+        #msg { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); padding: 20px; border-radius: 10px; display: none; z-index: 2000; font-weight: bold; }
         .menu-container { display: flex; flex-direction: column; gap: 20px; text-align: center; }
         .btn-menu { padding: 20px 40px; border-radius: 12px; font-size: 1.1rem; font-weight: bold; cursor: pointer; border: 2px solid var(--accent); transition: 0.3s; }
         .btn-load { background: var(--accent); color: #000; }
@@ -84,6 +84,17 @@
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.type = type; osc.frequency.value = freq; osc.connect(gain); gain.connect(audioCtx.destination);
         osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration); osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function speakText(texto) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const msg = new SpeechSynthesisUtterance(texto);
+            msg.lang = 'es-MX';
+            msg.rate = 1.05;
+            msg.pitch = 1.1; 
+            window.speechSynthesis.speak(msg);
+        }
     }
 
     db.ref('picking_live').on('value', (snapshot) => {
@@ -161,10 +172,12 @@
         if (!code) { irASiguienteEstacion(select); updateView(); input.focus(); return; }
         if ((stationsData[station] || []).length >= 1) {
             playTone(150, 'sawtooth', 0.5); showNotify(`ERROR: ${station} ocupada`, 'var(--danger)');
+            speakText("Estación ocupada");
             input.value = ''; irASiguienteEstacion(select); updateView(); return;
         }
         if (codeMap.has(code)) {
             playTone(150, 'sawtooth', 0.5); showNotify(`DUPLICADO: Ubicación ${codeMap.get(code)}`, 'var(--danger)');
+            speakText("Código duplicado");
             input.value = ''; return;
         }
         playTone(880, 'sine', 0.1);
