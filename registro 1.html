@@ -92,7 +92,6 @@
         }
     }
 
-    // 1. OPTIMIZACIÓN LECTURA DB: Separación Granular de Listeners
     onValue(ref(db, 'picking_live/stationsList'), (snapshot) => {
         const list = snapshot.val();
         if (list) {
@@ -138,7 +137,7 @@
         if(select.options.length === stationsList.length) return;
         select.innerHTML = '';
         stationsList.forEach(n => { let o = document.createElement('option'); o.value = n; o.textContent = n; select.appendChild(o); });
-        if(current && stationsList.includes(current)) select.value = current;
+        if(current && stationsList.some(x => String(x) === String(current))) select.value = current;
     }
 
     function selectStation(name) {
@@ -147,7 +146,6 @@
         document.getElementById('barcodeInput').focus();
     }
 
-    // 2. OPTIMIZACIÓN DOM: Renderizado In-Place 
     function initializeDOM() {
         const container = document.getElementById('tableBody');
         container.innerHTML = '';
@@ -158,14 +156,14 @@
             rowElements.set(name, row);
             updateSingleRow(name); 
         });
-        document.getElementById('activeRow')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        document.getElementById('activeRow')?.scrollIntoView({ behavior: 'auto', block: 'center' });
     }
 
     function updateSingleRow(name) {
         const row = rowElements.get(name);
         if(!row) return; 
         const active = document.getElementById('activeStation').value;
-        const isActive = (name === active); 
+        const isActive = (String(name) === String(active)); 
         const cur = stationsData[name] || []; 
         const has = cur.length > 0;
         
@@ -187,7 +185,7 @@
         if (currentActiveStation && currentActiveStation !== newActive) updateSingleRow(currentActiveStation);
         if (newActive) updateSingleRow(newActive);
         currentActiveStation = newActive;
-        document.getElementById('activeRow')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        document.getElementById('activeRow')?.scrollIntoView({ behavior: 'auto', block: 'center' });
     }
 
     function processScan() {
@@ -207,7 +205,6 @@
         playTone(880, 'sine', 0.1);
         const entry = { code: code, time: new Date().toLocaleTimeString() };
         
-        // UI se adelanta a Firebase para dar sensación de cero latencia al operario
         stationsData[station] = [entry]; 
         codeMap.set(code, station);
         updateSingleRow(station); 
@@ -219,7 +216,7 @@
         update(ref(db), up);
     }
 
-    function irASiguienteEstacion(s) { s.value = stationsList[(stationsList.indexOf(s.value) + 1) % stationsList.length]; }
+    function irASiguienteEstacion(s) { let i = stationsList.findIndex(x => String(x) === String(s.value)); s.value = stationsList[(i !== -1 ? i + 1 : 0) % stationsList.length]; }
     function deleteItem(s, c) { if(confirm(`¿Eliminar el código ${c}?`)) { set(ref(db, `picking_live/stationsData/${s}`), []); remove(ref(db, `picking_live/codeMap/${c}`)); }}
     function clearStationData() { if(confirm("¿BORRAR TODOS los códigos de TODAS las estaciones?")) { set(ref(db, 'picking_live/codeMap'), {}); stationsList.forEach(s => set(ref(db, `picking_live/stationsData/${s}`), [])); }}
     document.getElementById('barcodeInput').addEventListener('keypress', e => { if(e.key === 'Enter') processScan(); });
