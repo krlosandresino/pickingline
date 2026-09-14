@@ -66,8 +66,9 @@
 </div>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-    import { getDatabase, ref, onValue, get, set, update, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+    import { getDatabase, ref, onValue, onChildAdded, onChildChanged, onChildRemoved, get, set, update, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
+    // Credenciales específicas para Sesión #2 (verproductos-40224)
     const firebaseConfig = {
         apiKey: "AIzaSyAENxoHkiH5XrW5iOYJl9ci_w8SSYoLw3s",
         authDomain: "verproductos-40224.firebaseapp.com",
@@ -81,6 +82,8 @@
     const db = getDatabase(app);
     
     let stationsData = {}; let stationsList = []; let codeMap = new Map();
+    const rowElements = new Map(); // Mapeo DOM
+    let currentActiveStation = '';
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     function playTone(freq, type, duration) {
@@ -93,28 +96,35 @@
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const msg = new SpeechSynthesisUtterance(texto);
-            msg.lang = 'es-MX';
-            msg.rate = 1.05;
-            msg.pitch = 1.1; 
-            window.speechSynthesis.speak(msg);
+            msg.lang = 'es-MX'; msg.rate = 1.05; msg.pitch = 1.1; window.speechSynthesis.speak(msg);
         }
     }
 
-    onValue(ref(db, 'picking_live'), (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            stationsData = data.stationsData || {}; stationsList = data.stationsList || [];
-            codeMap = new Map(Object.entries(data.codeMap || {}));
-            if (document.getElementById('mainView').style.display === 'flex') { updateSelectOptions(); updateView(); }
+    // 1. OPTIMIZACIÓN LECTURA DB: Separación Granular de Listeners
+    onValue(ref(db, 'picking_live/stationsList'), (snapshot) => {
+        const list = snapshot.val();
+        if (list) {
+            stationsList = list;
+            if (document.getElementById('mainView').style.display === 'flex') { updateSelectOptions(); initializeDOM(); }
         }
     });
 
+    const stRef = ref(db, 'picking_live/stationsData');
+    onChildAdded(stRef, (snap) => { stationsData[snap.key] = snap.val() || []; updateSingleRow(snap.key); });
+    onChildChanged(stRef, (snap) => { stationsData[snap.key] = snap.val() || []; updateSingleRow(snap.key); });
+    onChildRemoved(stRef, (snap) => { delete stationsData[snap.key]; updateSingleRow(snap.key); });
+
+    const cmRef = ref(db, 'picking_live/codeMap');
+    onChildAdded(cmRef, (snap) => codeMap.set(snap.key, snap.val()));
+    onChildRemoved(cmRef, (snap) => codeMap.delete(snap.key));
+
     async function enterLiveSession() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
         const snapshot = await get(ref(db, 'picking_live/stationsList'));
         const list = snapshot.val();
         if (!list) return showNotify("No hay estaciones cargadas. Por favor carga un Excel.", "var(--danger)");
         stationsList = list; document.getElementById('welcomeView').style.display = 'none'; document.getElementById('mainView').style.display = 'flex';
-        updateSelectOptions(); updateView(); setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
+        updateSelectOptions(); initializeDOM(); setTimeout(() => document.getElementById('barcodeInput').focus(), 100);
     }
 
     document.getElementById('excelInput').addEventListener('change', function(e) {
@@ -140,30 +150,51 @@
     }
 
     function selectStation(name) {
-        const select = document.getElementById('activeStation');
-        select.value = name;
+        document.getElementById('activeStation').value = name;
         updateView();
         document.getElementById('barcodeInput').focus();
     }
 
-    function updateView() {
+    // 2. OPTIMIZACIÓN DOM: Renderizado In-Place 
+    function initializeDOM() {
         const container = document.getElementById('tableBody');
-        const active = document.getElementById('activeStation').value;
-        if (!container || !active) return;
         container.innerHTML = '';
+        rowElements.clear();
         stationsList.forEach(name => {
-            const isActive = (name === active); const cur = stationsData[name] || []; const has = cur.length > 0;
-            const row = document.createElement('div'); row.className = 'data-row' + (isActive ? ' active-row' : '');
-            if(isActive) row.id = 'activeRow';
-            row.onclick = () => selectStation(name);
-            let statusHtml = isActive ? '<span class="status-scanning">● MI UBICACIÓN</span>' : 
-                             (has ? '<span class="status-completed">✓ COMPLETADO</span>' : '<span style="color:#475569">Esperando</span>');
-            row.innerHTML = `<div><b>${name}</b></div><div><span class="count-badge">${cur.length}</span></div>
-                <div style="font-family:monospace; color:#94a3b8">${cur[0]?.code || '-'}</div>
-                <div>${statusHtml}</div>
-                <div>${has ? `<button class="btn-del" onclick="event.stopPropagation(); deleteItem('${name}', '${cur[0].code}')">X</button>` : ''}</div>`;
+            const row = document.createElement('div');
             container.appendChild(row);
+            rowElements.set(name, row);
+            updateSingleRow(name); 
         });
+        document.getElementById('activeRow')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function updateSingleRow(name) {
+        const row = rowElements.get(name);
+        if(!row) return; 
+        const active = document.getElementById('activeStation').value;
+        const isActive = (name === active); 
+        const cur = stationsData[name] || []; 
+        const has = cur.length > 0;
+        
+        row.className = 'data-row' + (isActive ? ' active-row' : '');
+        if(isActive) row.id = 'activeRow'; else row.removeAttribute('id');
+        
+        row.onclick = () => selectStation(name);
+        let statusHtml = isActive ? '<span class="status-scanning">● MI UBICACIÓN</span>' : 
+                         (has ? '<span class="status-completed">✓ COMPLETADO</span>' : '<span style="color:#475569">Esperando</span>');
+        
+        row.innerHTML = `<div><b>${name}</b></div><div><span class="count-badge">${cur.length}</span></div>
+            <div style="font-family:monospace; color:#94a3b8">${cur[0]?.code || '-'}</div>
+            <div>${statusHtml}</div>
+            <div>${has ? `<button class="btn-del" onclick="event.stopPropagation(); window.deleteItem('${name}', '${cur[0].code}')">X</button>` : ''}</div>`;
+    }
+
+    function updateView() {
+        const newActive = document.getElementById('activeStation').value;
+        if (currentActiveStation && currentActiveStation !== newActive) updateSingleRow(currentActiveStation);
+        if (newActive) updateSingleRow(newActive);
+        currentActiveStation = newActive;
         document.getElementById('activeRow')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -175,18 +206,23 @@
         if (!code) { irASiguienteEstacion(select); updateView(); input.focus(); return; }
         if ((stationsData[station] || []).length >= 1) {
             playTone(150, 'sawtooth', 0.5); showNotify(`ERROR: ${station} ocupada`, 'var(--danger)');
-            speakText("Estación ocupada");
-            input.value = ''; irASiguienteEstacion(select); updateView(); return;
+            speakText("Estación ocupada"); input.value = ''; irASiguienteEstacion(select); updateView(); return;
         }
         if (codeMap.has(code)) {
             playTone(150, 'sawtooth', 0.5); showNotify(`DUPLICADO: Ubicación ${codeMap.get(code)}`, 'var(--danger)');
-            speakText("Código duplicado");
-            input.value = ''; return;
+            speakText("Código duplicado"); input.value = ''; return;
         }
         playTone(880, 'sine', 0.1);
         const entry = { code: code, time: new Date().toLocaleTimeString() };
-        stationsData[station] = [entry]; codeMap.set(code, station);
-        irASiguienteEstacion(select); updateView(); input.value = ''; input.focus();
+        
+        // UI se adelanta a Firebase para dar sensación de cero latencia
+        stationsData[station] = [entry]; 
+        codeMap.set(code, station);
+        updateSingleRow(station); 
+        irASiguienteEstacion(select); 
+        updateView(); 
+        input.value = ''; input.focus();
+        
         const up = {}; up[`picking_live/stationsData/${station}`] = [entry]; up[`picking_live/codeMap/${code}`] = station;
         update(ref(db), up);
     }
@@ -203,7 +239,6 @@
         const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Picking"); XLSX.writeFile(wb, "Reporte_Picking_Line.xlsx");
     }
 
-    // Exponemos las funciones al scope global (window) para que el HTML pueda ejecutarlas
     window.enterLiveSession = enterLiveSession;
     window.updateView = updateView;
     window.selectStation = selectStation;

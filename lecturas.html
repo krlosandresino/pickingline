@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💻 Consolidador de Picking</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <style>
         :root { --bg: #0b0f19; --panel: #1e293b; --accent: #38bdf8; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; --border: #334155; --text: #f1f5f9; }
         body, html { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; }
@@ -70,78 +68,59 @@
         </div>
     </div>
     <div class="scroll-area">
-        <div class="table-body-container" id="tableBody">
-            <!-- Los datos se insertarán aquí -->
-        </div>
+        <div class="table-body-container" id="tableBody"></div>
     </div>
 </div>
 
-<script>
-    // Configuración Sesión 1
-    const config1 = { 
-        apiKey: "AIzaSyClp2tVcoeIE_ZOedIzP6zyEXEoP9Em0tM", 
-        databaseURL: "https://chatpareja-3fbce-default-rtdb.firebaseio.com", 
-        projectId: "chatpareja-3fbce" 
-    };
-    
-    // Configuración Sesión 2
-    const config2 = { 
-        apiKey: "AIzaSyAENxoHkiH5XrW5iOYJl9ci_w8SSYoLw3s", 
-        databaseURL: "https://verproductos-40224-default-rtdb.firebaseio.com",
-        projectId: "verproductos-40224" 
-    };
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getDatabase, ref, onChildAdded, onChildChanged, onChildRemoved, set, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
-    // Inicializar ambas aplicaciones de Firebase
-    const app1 = firebase.initializeApp(config1, "app1");
-    const app2 = firebase.initializeApp(config2, "app2");
+    const config1 = { apiKey: "AIzaSyClp2tVcoeIE_ZOedIzP6zyEXEoP9Em0tM", databaseURL: "https://chatpareja-3fbce-default-rtdb.firebaseio.com", projectId: "chatpareja-3fbce" };
+    const config2 = { apiKey: "AIzaSyAENxoHkiH5XrW5iOYJl9ci_w8SSYoLw3s", databaseURL: "https://verproductos-40224-default-rtdb.firebaseio.com", projectId: "verproductos-40224" };
+
+    const app1 = initializeApp(config1, "app1");
+    const app2 = initializeApp(config2, "app2");
     
-    const db1 = app1.database();
-    const db2 = app2.database();
+    const db1 = getDatabase(app1);
+    const db2 = getDatabase(app2);
 
     let data1 = {};
     let data2 = {};
     let combinedData = [];
     let showDuplicatesOnly = false;
     let searchTerm = "";
-    let debounceTimer; // Variable para el Debounce añadida
+    let debounceTimer; 
+    
+    // Novedad: Mapa en memoria para el DOM in-place
+    const rowElements = new Map(); 
 
-    // Escuchar datos de la Sesión 1
-    db1.ref('picking_live/stationsData').on('value', (snapshot) => {
-        data1 = snapshot.val() || {};
-        processData();
-    });
+    // Optimización DB: Listeners granulares, solo descargan la ubicación afectada
+    function listenToApp(db, dataObj, sessionNum) {
+        const stRef = ref(db, 'picking_live/stationsData');
+        onChildAdded(stRef, (snap) => { dataObj[snap.key] = snap.val(); processData(); });
+        onChildChanged(stRef, (snap) => { dataObj[snap.key] = snap.val(); processData(); });
+        onChildRemoved(stRef, (snap) => { delete dataObj[snap.key]; processData(); });
+    }
 
-    // Escuchar datos de la Sesión 2
-    db2.ref('picking_live/stationsData').on('value', (snapshot) => {
-        data2 = snapshot.val() || {};
-        processData();
-    });
+    listenToApp(db1, data1, 1);
+    listenToApp(db2, data2, 2);
 
     function processData() {
         combinedData = [];
-        
-        // Procesar datos 1
         Object.keys(data1).forEach(station => {
             if (data1[station] && data1[station].length > 0) {
-                data1[station].forEach(item => {
-                    combinedData.push({ station: station, code: item.code, session: 1 });
-                });
+                data1[station].forEach(item => combinedData.push({ station, code: item.code, session: 1 }));
             }
         });
-
-        // Procesar datos 2
         Object.keys(data2).forEach(station => {
             if (data2[station] && data2[station].length > 0) {
-                data2[station].forEach(item => {
-                    combinedData.push({ station: station, code: item.code, session: 2 });
-                });
+                data2[station].forEach(item => combinedData.push({ station, code: item.code, session: 2 }));
             }
         });
-
         renderTable();
     }
 
-    // Función de búsqueda actualizada con Debounce
     function handleSearch() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
@@ -153,7 +132,6 @@
     function toggleDuplicates() {
         showDuplicatesOnly = !showDuplicatesOnly;
         const btn = document.getElementById('btnDuplicates');
-        
         if (showDuplicatesOnly) {
             btn.classList.add('active');
             btn.innerHTML = '📋 Ver Todos los Registros';
@@ -166,122 +144,111 @@
 
     function deleteRecord(station, code, session) {
         if (confirm(`¿Estás seguro de eliminar el código ${code} de la ubicación ${station} (Sesión ${session})?`)) {
-            const db = session === 1 ? db1 : db2;
-            
-            // Eliminar de stationsData (lo vacía como en tu lógica original)
-            db.ref(`picking_live/stationsData/${station}`).set([]);
-            
-            // Eliminar de codeMap
-            db.ref(`picking_live/codeMap/${code}`).remove();
+            const targetDb = session === 1 ? db1 : db2;
+            set(ref(targetDb, `picking_live/stationsData/${station}`), []);
+            remove(ref(targetDb, `picking_live/codeMap/${code}`));
         }
     }
 
     function deleteAllRecords() {
         if (confirm('⚠️ ¿Estás seguro de ELIMINAR TODOS los registros de AMBAS sesiones?')) {
-            // Eliminar todos los datos de la sesión 1
-            db1.ref('picking_live/stationsData').remove();
-            db1.ref('picking_live/codeMap').remove();
-            
-            // Eliminar todos los datos de la sesión 2
-            db2.ref('picking_live/stationsData').remove();
-            db2.ref('picking_live/codeMap').remove();
+            remove(ref(db1, 'picking_live/stationsData')); remove(ref(db1, 'picking_live/codeMap'));
+            remove(ref(db2, 'picking_live/stationsData')); remove(ref(db2, 'picking_live/codeMap'));
         }
     }
 
-    // Función renderTable actualizada con optimización DOM e Icono
+    // Optimización DOM: Reconciliación Inteligente In-place sin parpadeos
     function renderTable() {
         const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = '';
-        
-        // Crear fragmento en memoria para optimización DOM
-        const fragment = document.createDocumentFragment();
-        
         let renderList = combinedData;
 
-        // Contar ocurrencias para detectar duplicados
         const codeCounts = {};
         let totalDuplicados = 0;
         
-        combinedData.forEach(item => {
-            codeCounts[item.code] = (codeCounts[item.code] || 0) + 1;
-        });
+        combinedData.forEach(item => { codeCounts[item.code] = (codeCounts[item.code] || 0) + 1; });
+        combinedData.forEach(item => { if(codeCounts[item.code] > 1) totalDuplicados++; });
 
-        // Contabilizar el total real de códigos duplicados
-        combinedData.forEach(item => {
-            if(codeCounts[item.code] > 1) {
-                totalDuplicados++;
-            }
-        });
-
-        // Actualizar mini contador en la cabecera
         const statsCounter = document.getElementById('statsCounter');
         if(statsCounter) {
             statsCounter.innerHTML = `Registros: <span style="color: white;">${combinedData.length}</span> &nbsp;|&nbsp; Duplicados: <span style="color: var(--danger);">${totalDuplicados}</span>`;
         }
 
-        // Filtrar por búsqueda
         if (searchTerm) {
             renderList = renderList.filter(item => 
-                item.code.toLowerCase().includes(searchTerm) || 
-                item.station.toLowerCase().includes(searchTerm)
+                item.code.toLowerCase().includes(searchTerm) || item.station.toLowerCase().includes(searchTerm)
             );
         }
 
-        // Filtrar por duplicados si está activo
         if (showDuplicatesOnly) {
             renderList = renderList.filter(item => codeCounts[item.code] > 1);
-            // Agrupar (ordenar) por código para optimizar la vista
             renderList.sort((a, b) => a.code.localeCompare(b.code));
         }
 
+        const currentVisibleIds = new Set();
+        
         if (renderList.length === 0) {
-            tbody.innerHTML = `<div style="padding: 20px; text-align: center; color: #94a3b8;">No se encontraron registros.</div>`;
+            if (rowElements.size === 0) {
+                tbody.innerHTML = `<div id="emptyMsg" style="padding: 20px; text-align: center; color: #94a3b8;">No se encontraron registros.</div>`;
+            } else {
+                rowElements.forEach(row => row.style.display = 'none');
+            }
             return;
         }
 
-        // Renderizar filas sobre el fragmento
+        const emptyMsg = document.getElementById('emptyMsg');
+        if(emptyMsg) emptyMsg.remove();
+
         renderList.forEach(item => {
+            const uid = `${item.session}-${item.station}-${item.code}`;
+            currentVisibleIds.add(uid);
+            
             const isDuplicate = codeCounts[item.code] > 1;
             const rowClass = isDuplicate ? 'data-row duplicated' : 'data-row';
             const badgeClass = item.session === 1 ? 'badge-s1' : 'badge-s2';
+
+            let row = rowElements.get(uid);
+            if (!row) {
+                // Solo inyectamos innerHTML la primera vez que detecta un pitado
+                row = document.createElement('div');
+                rowElements.set(uid, row);
+                
+                row.innerHTML = `
+                    <div><b>${item.station}</b></div>
+                    <div style="font-family:monospace; color:var(--accent); font-size: 1.05rem;">${item.code}</div>
+                    <div><span class="${badgeClass}">Sesión #${item.session}</span></div>
+                    <div>
+                        <button class="btn-del">
+                            🗑️ Eliminar
+                        </button>
+                    </div>
+                `;
+                
+                row.querySelector('.btn-del').onclick = () => deleteRecord(item.station, item.code, item.session);
+                tbody.appendChild(row);
+            }
             
-            const row = document.createElement('div');
-            row.className = rowClass;
-            row.innerHTML = `
-                <div><b>${item.station}</b></div>
-                <div style="font-family:monospace; color:var(--accent); font-size: 1.05rem;">${item.code}</div>
-                <div><span class="${badgeClass}">Sesión #${item.session}</span></div>
-                <div>
-                    <button class="btn-del" onclick="deleteRecord('${item.station}', '${item.code}', ${item.session})">
-                        🗑️ Eliminar
-                    </button>
-                </div>
-            `;
-            // Insertar en el fragmento en vez del DOM
-            fragment.appendChild(row);
+            // Actualización In-Place rápida
+            if (row.className !== rowClass) row.className = rowClass;
+            if (row.style.display === 'none') row.style.display = 'grid';
         });
 
-        // Insertar todo el fragmento al final en el DOM
-        tbody.appendChild(fragment);
+        // Ocultar las filas que ya no cumplen con la búsqueda/eliminación
+        rowElements.forEach((row, uid) => {
+            if (!currentVisibleIds.has(uid)) row.style.display = 'none';
+        });
     }
 
     function exportToExcel() {
-        if (combinedData.length === 0) {
-            alert("No hay datos para exportar.");
-            return;
-        }
-        
-        let exportData = combinedData.map(item => ({
-            "Ubicación": item.station,
-            "Código": item.code,
-            "Archivo Origen": `Sesión ${item.session}`
-        }));
-
+        if (combinedData.length === 0) { alert("No hay datos para exportar."); return; }
+        let exportData = combinedData.map(item => ({ "Ubicación": item.station, "Código": item.code, "Archivo Origen": `Sesión ${item.session}` }));
         const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new(); 
-        XLSX.utils.book_append_sheet(wb, ws, "Consolidado"); 
-        XLSX.writeFile(wb, "Reporte_Consolidado_Picking.xlsx");
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Consolidado"); XLSX.writeFile(wb, "Reporte_Consolidado_Picking.xlsx");
     }
+
+    window.handleSearch = handleSearch;
+    window.toggleDuplicates = toggleDuplicates;
+    window.deleteAllRecords = deleteAllRecords;
+    window.exportToExcel = exportToExcel;
 </script>
 </body>
 </html>
