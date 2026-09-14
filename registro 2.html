@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💻 Sesión #2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <style>
         :root { --bg: #0b0f19; --panel: #1e293b; --accent: #38bdf8; --success: #22c55e; --danger: #ef4444; --border: #334155; --text: #f1f5f9; }
         body, html { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; }
@@ -66,7 +64,10 @@
     </div>
     <div class="scroll-area"><div class="table-body-container" id="tableBody"></div></div>
 </div>
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getDatabase, ref, onValue, get, set, update, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
     const firebaseConfig = {
         apiKey: "AIzaSyAENxoHkiH5XrW5iOYJl9ci_w8SSYoLw3s",
         authDomain: "verproductos-40224.firebaseapp.com",
@@ -75,8 +76,10 @@
         messagingSenderId: "903739745189",
         appId: "1:903739745189:web:5931d9b5a921cc2f85be4c"
     };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    
     let stationsData = {}; let stationsList = []; let codeMap = new Map();
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -97,7 +100,7 @@
         }
     }
 
-    db.ref('picking_live').on('value', (snapshot) => {
+    onValue(ref(db, 'picking_live'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
             stationsData = data.stationsData || {}; stationsList = data.stationsList || [];
@@ -107,7 +110,7 @@
     });
 
     async function enterLiveSession() {
-        const snapshot = await db.ref('picking_live/stationsList').once('value');
+        const snapshot = await get(ref(db, 'picking_live/stationsList'));
         const list = snapshot.val();
         if (!list) return showNotify("No hay estaciones cargadas. Por favor carga un Excel.", "var(--danger)");
         stationsList = list; document.getElementById('welcomeView').style.display = 'none'; document.getElementById('mainView').style.display = 'flex';
@@ -122,7 +125,7 @@
             const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
             let tempSD = {}; let tempSL = [];
             json.forEach(row => { const n = row.Estacion || row.UBICACION || Object.values(row)[0]; if(n && !tempSD[n]) { tempSD[n] = []; tempSL.push(n); } });
-            db.ref('picking_live').set({ stationsData: tempSD, stationsList: tempSL, codeMap: {} }).then(() => enterLiveSession());
+            set(ref(db, 'picking_live'), { stationsData: tempSD, stationsList: tempSL, codeMap: {} }).then(() => enterLiveSession());
         };
         reader.readAsArrayBuffer(e.target.files[0]);
     });
@@ -185,12 +188,12 @@
         stationsData[station] = [entry]; codeMap.set(code, station);
         irASiguienteEstacion(select); updateView(); input.value = ''; input.focus();
         const up = {}; up[`picking_live/stationsData/${station}`] = [entry]; up[`picking_live/codeMap/${code}`] = station;
-        db.ref().update(up);
+        update(ref(db), up);
     }
 
     function irASiguienteEstacion(s) { s.value = stationsList[(stationsList.indexOf(s.value) + 1) % stationsList.length]; }
-    function deleteItem(s, c) { if(confirm(`¿Eliminar el código ${c}?`)) { db.ref(`picking_live/stationsData/${s}`).set([]); db.ref(`picking_live/codeMap/${c}`).remove(); }}
-    function clearStationData() { if(confirm("¿BORRAR TODOS los códigos de TODAS las estaciones?")) { db.ref('picking_live/codeMap').set({}); stationsList.forEach(s => db.ref(`picking_live/stationsData/${s}`).set([])); }}
+    function deleteItem(s, c) { if(confirm(`¿Eliminar el código ${c}?`)) { set(ref(db, `picking_live/stationsData/${s}`), []); remove(ref(db, `picking_live/codeMap/${c}`)); }}
+    function clearStationData() { if(confirm("¿BORRAR TODOS los códigos de TODAS las estaciones?")) { set(ref(db, 'picking_live/codeMap'), {}); stationsList.forEach(s => set(ref(db, `picking_live/stationsData/${s}`), [])); }}
     document.getElementById('barcodeInput').addEventListener('keypress', e => { if(e.key === 'Enter') processScan(); });
     function showNotify(t, c) { const m = document.getElementById('msg'); m.innerHTML = t; m.style.backgroundColor = c; m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 3000); }
     function exportToExcel() {
@@ -199,6 +202,15 @@
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Picking"); XLSX.writeFile(wb, "Reporte_Picking_Line.xlsx");
     }
+
+    // Exponemos las funciones al scope global (window) para que el HTML pueda ejecutarlas
+    window.enterLiveSession = enterLiveSession;
+    window.updateView = updateView;
+    window.selectStation = selectStation;
+    window.processScan = processScan;
+    window.clearStationData = clearStationData;
+    window.deleteItem = deleteItem;
+    window.exportToExcel = exportToExcel;
 </script>
 </body>
 </html>
