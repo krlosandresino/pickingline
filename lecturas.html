@@ -103,6 +103,7 @@
     let combinedData = [];
     let showDuplicatesOnly = false;
     let searchTerm = "";
+    let debounceTimer; // Variable para el Debounce añadida
 
     // Escuchar datos de la Sesión 1
     db1.ref('picking_live/stationsData').on('value', (snapshot) => {
@@ -140,9 +141,13 @@
         renderTable();
     }
 
+    // Función de búsqueda actualizada con Debounce
     function handleSearch() {
-        searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
-        renderTable();
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            renderTable();
+        }, 300);
     }
 
     function toggleDuplicates() {
@@ -183,9 +188,13 @@
         }
     }
 
+    // Función renderTable actualizada con optimización DOM e Icono
     function renderTable() {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
+        
+        // Crear fragmento en memoria para optimización DOM
+        const fragment = document.createDocumentFragment();
         
         let renderList = combinedData;
 
@@ -230,7 +239,7 @@
             return;
         }
 
-        // Renderizar filas
+        // Renderizar filas sobre el fragmento
         renderList.forEach(item => {
             const isDuplicate = codeCounts[item.code] > 1;
             const rowClass = isDuplicate ? 'data-row duplicated' : 'data-row';
@@ -244,12 +253,16 @@
                 <div><span class="${badgeClass}">Sesión #${item.session}</span></div>
                 <div>
                     <button class="btn-del" onclick="deleteRecord('${item.station}', '${item.code}', ${item.session})">
-                        X Eliminar
+                        🗑️ Eliminar
                     </button>
                 </div>
             `;
-            tbody.appendChild(row);
+            // Insertar en el fragmento en vez del DOM
+            fragment.appendChild(row);
         });
+
+        // Insertar todo el fragmento al final en el DOM
+        tbody.appendChild(fragment);
     }
 
     function exportToExcel() {
