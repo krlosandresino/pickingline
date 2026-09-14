@@ -145,6 +145,7 @@
         select.innerHTML = '';
         stationsList.forEach(n => { let o = document.createElement('option'); o.value = n; o.textContent = n; select.appendChild(o); });
         if(current && stationsList.some(x => String(x) === String(current))) select.value = current;
+        currentActiveStation = select.value;
     }
 
     function selectStation(name) {
@@ -157,13 +158,18 @@
         const container = document.getElementById('tableBody');
         container.innerHTML = '';
         rowElements.clear();
+        
+        currentActiveStation = document.getElementById('activeStation').value;
+        
         stationsList.forEach(name => {
             const row = document.createElement('div');
             container.appendChild(row);
             rowElements.set(name, row);
             updateSingleRow(name); 
         });
-        document.getElementById('activeRow')?.scrollIntoView({ behavior: 'auto', block: 'center' });
+        setTimeout(() => {
+            document.getElementById('activeRow')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
     }
 
     function updateSingleRow(name) {
@@ -189,10 +195,24 @@
 
     function updateView() {
         const newActive = document.getElementById('activeStation').value;
-        if (currentActiveStation && currentActiveStation !== newActive) updateSingleRow(currentActiveStation);
-        if (newActive) updateSingleRow(newActive);
+        const oldActive = currentActiveStation;
         currentActiveStation = newActive;
-        document.getElementById('activeRow')?.scrollIntoView({ behavior: 'auto', block: 'center' });
+        
+        if (oldActive && oldActive !== newActive) {
+            updateSingleRow(oldActive);
+        } else if (!oldActive) {
+            const oldElement = document.getElementById('activeRow');
+            if (oldElement) {
+                const oldName = oldElement.querySelector('b')?.innerText;
+                if (oldName && oldName !== newActive) updateSingleRow(oldName);
+            }
+        }
+        
+        updateSingleRow(newActive);
+        
+        setTimeout(() => {
+            document.getElementById('activeRow')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 10);
     }
 
     function processScan() {
